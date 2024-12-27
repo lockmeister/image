@@ -23,27 +23,37 @@ if 'current_color' not in st.session_state:
 
 @st.cache_data
 def transform_color(pixel, target_color):
-    """Transform a pixel's color while preserving its relative brightness."""
+    """Transform a pixel's color while preserving its relative brightness and transparency."""
     if isinstance(pixel, int):  # Handle grayscale images
         brightness = pixel / 255
         return tuple(int(brightness * c) for c in target_color)
     
+    # Handle RGBA images
+    if len(pixel) == 4:
+        r, g, b, a = pixel
+        brightness = (r + g + b) / (255 * 3)
+        new_r = int(target_color[0] * brightness)
+        new_g = int(target_color[1] * brightness)
+        new_b = int(target_color[2] * brightness)
+        return (new_r, new_g, new_b, a)  # Preserve alpha channel
+    
+    # Handle RGB images
     r, g, b = pixel[:3]
     brightness = (r + g + b) / (255 * 3)
-    
     new_r = int(target_color[0] * brightness)
     new_g = int(target_color[1] * brightness)
     new_b = int(target_color[2] * brightness)
-    
-    if len(pixel) > 3:
-        return (new_r, new_g, new_b, pixel[3])
     return (new_r, new_g, new_b)
 
 def process_image(img, target_color, progress_callback=None):
     """Process a single image, changing its color while preserving gradients."""
     try:
+        # Convert to RGBA if image has transparency, otherwise to RGB
         if img.mode not in ('RGB', 'RGBA'):
-            img = img.convert('RGB')
+            if img.mode in ('P', 'LA', 'PA'):
+                img = img.convert('RGBA')
+            else:
+                img = img.convert('RGB')
             
         width, height = img.size
         new_img = Image.new(img.mode, (width, height))
@@ -87,12 +97,12 @@ def main():
     # Convert hex color to RGB
     target_color = tuple(int(color[i:i+2], 16) for i in (1, 3, 5))
 
-    # File uploader for multiple files
+    # File uploader for bitmap files
     uploaded_files = st.file_uploader(
-        "Choose image files",
-        type=['png', 'jpg', 'jpeg', 'bmp'],
+        "Choose bitmap (.bmp) files",
+        type=['bmp'],
         accept_multiple_files=True,
-        help="Select multiple files by holding Ctrl/Cmd while clicking"
+        help="Select multiple .bmp files by holding Ctrl/Cmd while clicking"
     )
 
     if uploaded_files:
@@ -126,12 +136,12 @@ def main():
                     if transformed_img:
                         # Store in session state
                         img_byte_arr = io.BytesIO()
-                        transformed_img.save(img_byte_arr, format=original_img.format or 'PNG')
+                        transformed_img.save(img_byte_arr, format='BMP')
                         st.session_state.processed_images[cache_key] = {
                             'original': original_img,
                             'transformed': transformed_img,
                             'bytes': img_byte_arr.getvalue(),
-                            'format': original_img.format or 'PNG'
+                            'format': 'BMP'
                         }
                 
                 if cache_key in st.session_state.processed_images:
@@ -155,7 +165,7 @@ def main():
                             label=f"Download {uploaded_file.name}",
                             data=img_data['bytes'],
                             file_name=f"transformed_{uploaded_file.name}",
-                            mime=f"image/{img_data['format'].lower()}"
+                            mime="image/bmp"
                         )
                 
                 # Update overall progress
