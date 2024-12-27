@@ -23,22 +23,29 @@ if 'current_color' not in st.session_state:
 
 @st.cache_data
 def transform_color(pixel, target_color):
-    """Transform a pixel's color while preserving its relative brightness and transparency."""
+    """Transform a pixel's color while preserving white and transparency."""
+    # Check if pixel is pure white (RGB 255,255,255)
     if isinstance(pixel, int):  # Handle grayscale images
+        if pixel == 255:
+            return 255
         brightness = pixel / 255
         return tuple(int(brightness * c) for c in target_color)
     
     # Handle RGBA images
     if len(pixel) == 4:
         r, g, b, a = pixel
+        if r == 255 and g == 255 and b == 255:
+            return (255, 255, 255, a)  # Preserve white with alpha
         brightness = (r + g + b) / (255 * 3)
         new_r = int(target_color[0] * brightness)
         new_g = int(target_color[1] * brightness)
         new_b = int(target_color[2] * brightness)
-        return (new_r, new_g, new_b, a)  # Preserve alpha channel
+        return (new_r, new_g, new_b, a)
     
     # Handle RGB images
     r, g, b = pixel[:3]
+    if r == 255 and g == 255 and b == 255:
+        return (255, 255, 255)  # Preserve white
     brightness = (r + g + b) / (255 * 3)
     new_r = int(target_color[0] * brightness)
     new_g = int(target_color[1] * brightness)
